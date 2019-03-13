@@ -53,7 +53,7 @@ namespace IngameScript
 
         List<IMyTerminalBlock> vents; //oxygen vents
 
-        List<IMyTerminalBlock> airlocks; // rotating airlock doors
+        List<IMyTerminalBlock> airlocks; // interior airlock doors
         List<IMyTerminalBlock> hangarDoors; //big door for the ship to come through
 
         List<IMyTerminalBlock> doorLights;     //external lights for door
@@ -73,6 +73,8 @@ namespace IngameScript
         IMyTimerBlock sensorTimer; //timer to pause the code till the sensor detects a ship
         IMyTimerBlock ventTimer; //timer to pause the code till the hanger is fully pressurised
         IMyTimerBlock departureTimer; //timer to pause the code till the ship has left the hanger
+
+        IMyShipConnector connector;
 
         string hangarPrefix;
         string hangarNum;
@@ -98,6 +100,7 @@ namespace IngameScript
             sensorTimer = GetDockBlock<IMyTimerBlock>(TIMER_SENSOR_NAME);
             ventTimer = GetDockBlock<IMyTimerBlock>(TIMER_VENT_NAME);
             departureTimer = GetDockBlock<IMyTimerBlock>(TIMER_DEPART_NAME);
+            connector = GetDockBlock<IMyShipConnector>(CONNECTOR_NAME);
 
             otherBlocks = new List<IMyTerminalBlock>() {
                 sensor,
@@ -105,6 +108,7 @@ namespace IngameScript
                 sensorTimer,
                 ventTimer,
                 departureTimer,
+                connector,
                 Me
             };
 
@@ -186,7 +190,7 @@ namespace IngameScript
                     }
                     break;
                 case "DEPARTURE CHECK":
-                    if (!exitSensor.IsActive)
+                    if (!IsDockOccupied())
                     {
                         departureTimer.ApplyAction(POWER_OFF);
                         OpenCloseHangarDoor(false);
@@ -358,6 +362,15 @@ namespace IngameScript
             }
         }
 
+        public bool IsDockOccupied()
+        {
+            if (connector.Status == MyShipConnectorStatus.Connected)
+            {
+                return true;
+            }
+            else return (exitSensor.IsActive || sensor.IsActive);
+            
+        }
 
 
         //GET BLOCK FUNCTIONS BELOW
@@ -468,28 +481,57 @@ namespace IngameScript
             display_docknum = display_docknum.Replace('.', black_square);
             display_docknum = display_docknum.Replace('#', yellow_square);
 
-            string ship_info = "Ship ID: {0}\nShip Name: {1}";
+            string ship_info_string = "Ship ID: {0}\nShip Name: {1}";
+            string[] ship_info = getShipNameAndID();
+
+            display_docknum += "\n" + string.Format(ship_info_string, ship_info[0], ship_info[1]);
+
+            return display_docknum;
+        }
+
+        public string[] getShipNameAndID()
+        {
             string shipIDHex;
             string shipName;
-            if (CheckSensor())
+            if(CheckSensor())
             {
                 shipIDHex = sensor.LastDetectedEntity.EntityId.ToString("X");
                 shipIDHex = shipIDHex.Substring(shipIDHex.Length - 8);
-                shipIDHex = shipIDHex.PadLeft(DISPLAY_WIDTH - "Ship ID: ".Length);
-
                 shipName = sensor.LastDetectedEntity.Name;
-                shipName = shipName.PadLeft(DISPLAY_WIDTH - "Ship Name: ".Length);
-
+            }
+            else if(connector.Status == MyShipConnectorStatus.Connected)
+            {
+                shipIDHex = connector.OtherConnector.EntityId.ToString("X");
+                shipIDHex = shipIDHex.Substring(shipIDHex.Length - 8);
+                shipName = connector.OtherConnector.CubeGrid.CustomName;
             }
             else
             {
-                shipIDHex = "N/A".PadLeft(DISPLAY_WIDTH - "Ship ID: ".Length);
-                shipName = "N/A".PadLeft(DISPLAY_WIDTH - "Ship Name: ".Length);
+                shipIDHex = "N/A";
+                shipName = "N/A";
             }
 
-            display_docknum += "\n" + string.Format(ship_info, shipIDHex, shipName);
+            if(shipIDHex.Length + "Ship Id: ".Length < DISPLAY_WIDTH)
+            {
+                shipIDHex = shipIDHex.PadLeft(DISPLAY_WIDTH - "Ship ID: ".Length);
+            }
+            else
+            {
+                shipIDHex = string.Format("\n{0}", shipIDHex);
+            }
 
-            return display_docknum;
+            if(shipName.Length + "Ship Name: ".Length < DISPLAY_WIDTH)
+            {
+                shipName = shipName.PadLeft(DISPLAY_WIDTH - "Ship Name: ".Length);
+            }
+            else
+            {
+                shipName = string.Format("\n{0}", shipName);
+            }
+            string[] shipInfo = new string[2];
+            shipInfo[0] = shipIDHex;
+            shipInfo[1] = shipName;
+            return shipInfo;
         }
 
         public void RenameAllBlocks(string new_prefix)

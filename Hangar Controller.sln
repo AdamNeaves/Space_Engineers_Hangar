@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hangar Controller - Individ
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hangar Controller - Central", "Hangar Controller - Central\Hangar Controller - Central.csproj", "{49540204-7539-4EF4-A209-1F827C643568}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hangar Controller - Request", "Hangar Controller - Request\Hangar Controller - Request.csproj", "{6611451D-0FA2-49A8-B8E8-8E0251FF910E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -16,6 +18,8 @@ Global
 		{85DEBA95-AAD8-4627-8FC9-2A5F7BE95A30}.Debug|x64.Build.0 = Debug|x64
 		{49540204-7539-4EF4-A209-1F827C643568}.Debug|x64.ActiveCfg = Debug|x64
 		{49540204-7539-4EF4-A209-1F827C643568}.Debug|x64.Build.0 = Debug|x64
+		{6611451D-0FA2-49A8-B8E8-8E0251FF910E}.Debug|x64.ActiveCfg = Debug|x64
+		{6611451D-0FA2-49A8-B8E8-8E0251FF910E}.Debug|x64.Build.0 = Debug|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
