@@ -20,105 +20,36 @@ namespace IngameScript
     partial class Program : MyGridProgram
     {
         #region mdk macros
-        // This script was deployed at $MDK_DATETIME$
+        // This script was deployed using the MDK api at $MDK_DATETIME$
         #endregion
-        //CHANGE THE FOLLOWING VARAIBLES FOR YOUR SETUP
 
-        //Names of blocks, minus the dock specific prefix. My setup uses "Dock 1 - Sensor" as the name of the piston of the first dock, for instance.
-        //The Prefix (Dock X in this case) is gained from the name of the programming block this code runs on.
-        const string DOCK_SENSOR_NAME = "Sensor";
-        const string DEPART_SENSOR_NAME = "Exit Sensor";
-        const string SPOTLIGHT_NAME = "Spotlight";
-        const string CONNECTOR_NAME = "Connector";
-        const string TIMER_SENSOR_NAME = "Sensor Timer";
-        const string TIMER_VENT_NAME = "Vent Timer";
-        const string TIMER_DEPART_NAME = "Departure Timer";
+        /// <summary>
+        /// Names of blocks, minus the dock specific prefix. My setup uses "Dock 1 - Sensor" as the name of the piston of the first dock, for instance.
+        /// The Prefix (Dock X in this case) is gained from the name of the programming block this code runs on.
+        /// </summary>
+        private Dictionary<string, string> block_names = new Dictionary<string, string>
+        {
+            {"landing_sensor", "Sensor" },
+            {"exit_sensor", "Exit Sensor"},
+            {"group_connectors", "Connector" },
+            {"group_vents", "Air Vent"},
+            {"group_airlocks", "Airlock"},
+            {"group_big_door", "Airtight Hangar Door"},
+            {"group_ext_lights", "Door Light"},
+            {"group_int_lights", "Interior Light"},
+            {"group_warn_lights", "Warning Light"},
+            {"group_int_lcds", "Internal LCD"},
+            {"group_ext_lcds", "External LCD"},
+            {"group_display_lcds", "LCD Display"}
+        };
 
-        const string GROUP_VENT_NAME = "Air Vent";
-        const string GROUP_AIRLOCK_NAME = "Airlock";
-        const string GROUP_DOOR_NAME = "Airtight Hangar Door";
-        const string GROUP_EXT_LIGHTS_NAME = "Door Light";
-        const string GROUP_INT_LIGHTS_NAME = "Interior Light";
-        const string GROUP_WARN_LIGHTS_NAME = "Warning Light";
-        const string GROUP_INT_LCDS_NAME = "Internal LCD";
-        const string GROUP_EXT_LCDS_NAME = "External LCD";
-
-        const string GROUP_INTERNAL_DISPLAY_NAME = "LCD Display";
-
-
-        //DO NOT EDIT ANYTHING BEYOND THIS POINT----------------w----------------------------------------------------------
-
-        const string POWER_ON = "OnOff_On";
-        const string POWER_OFF = "OnOff_Off";
-
-        List<IMyTerminalBlock> vents; //oxygen vents
-
-        List<IMyTerminalBlock> airlocks; // interior airlock doors
-        List<IMyTerminalBlock> hangarDoors; //big door for the ship to come through
-
-        List<IMyTerminalBlock> doorLights;     //external lights for door
-        List<IMyTerminalBlock> interiorLights; //interior lights
-        List<IMyTerminalBlock> warningLights;  // warning lights around big door
-
-        List<IMyTerminalBlock> internalTextPanels; //text panels above access doors
-        List<IMyTerminalBlock> externalTextPanels; //text panels with arrow or no entry graphic
-        List<IMyTerminalBlock> hangarSigns;        //signs that show the hangar name and current occupant info
-
-        List<List<IMyTerminalBlock>> allGroups;    //list of all block groups
-        List<IMyTerminalBlock> otherBlocks;
-
-        IMySensorBlock sensor; //sensor on the landing pad to detect if/when a ship has landed
-        IMySensorBlock exitSensor; //sensor by the door, detects if/when a ship has left the hangar
-
-        IMyTimerBlock sensorTimer; //timer to pause the code till the sensor detects a ship
-        IMyTimerBlock ventTimer; //timer to pause the code till the hanger is fully pressurised
-        IMyTimerBlock departureTimer; //timer to pause the code till the ship has left the hanger
-
-        IMyShipConnector connector;
-
-        string hangarPrefix;
-        string hangarNum;
-
-        string arrowTexture = "Arrow";
-        string warningTexture = "Danger";
-        string stopTexture = "No Entry";
-
-        Color red = new Color(255, 0, 0, 0);
-        Color green = new Color(0, 255, 0, 0);
-
-        int DISPLAY_WIDTH = 25;
+        HangarSystem hangar;
+        string hangar_name;
 
         public Program()
         {
-            Echo("COLLECTING BLOCK REFERENCES");
-            String name = Me.CustomName;
-            hangarPrefix = name.Split('-')[0].Trim(); //get the bit of name before the dash.
-
-            sensor = GetDockBlock<IMySensorBlock>(DOCK_SENSOR_NAME);
-            exitSensor = GetDockBlock<IMySensorBlock>(DEPART_SENSOR_NAME);
-
-            sensorTimer = GetDockBlock<IMyTimerBlock>(TIMER_SENSOR_NAME);
-            ventTimer = GetDockBlock<IMyTimerBlock>(TIMER_VENT_NAME);
-            departureTimer = GetDockBlock<IMyTimerBlock>(TIMER_DEPART_NAME);
-            connector = GetDockBlock<IMyShipConnector>(CONNECTOR_NAME);
-
-            otherBlocks = new List<IMyTerminalBlock>() {
-                sensor,
-                exitSensor,
-                sensorTimer,
-                ventTimer,
-                departureTimer,
-                connector,
-                Me
-            };
-
-            GetGroups();
-
-            foreach (IMyTextPanel panel in hangarSigns)
-            {
-                ApplyDisplay(hangarPrefix, panel);
-            }
-
+            hangar_name = Me.CustomName.Split('-')[0].Trim(); //get the bit of name before the dash.
+            hangar = new HangarSystem(hangar_name, block_names, this);
             Echo("COMPLETED SETUP");
         }
 
@@ -130,526 +61,403 @@ namespace IngameScript
             {
                 case "DOCK":
                     Echo("INITIATING DOCKING PROCEDURE");
-
-                    //change graphic of external LCDs to arrow
-                    SetOutsideScreen(arrowTexture);
-                    Echo(string.Format("OUTTA LCDS SET TO {0}", arrowTexture));
-                    //open door
-                    OpenCloseHangarDoor(true);
-                    Echo("OPENING BIG DOOR");
-                    PowerInteriorLights(false);
-                    PowerExternalLights(true);
-                    PowerWarningLights(red);
-                    Echo("LIGHTS SET");
-
-                    //light up external lights, maybe flash
-
-                    //WAIT for sensor to detect ship landing
-                    Echo("WAITING FOR SENSOR TO DETECT SHIP");
-                    sensorTimer.ApplyAction(POWER_ON); //sensor timer calls this programming block with argument "SENSOR CHECK"
-                    sensorTimer.ApplyAction("Start");
+                    hangar.StartDockingProcedure();
                     break;
+
                 case "UNDOCK":
-                    SetOutsideScreen(warningTexture);//change graphic of external LCDs to WARNING
-                    SetInteriorDoorsLock(true);
-                    PowerInteriorLights(false);
-                    SetVentPressure(false);
-                    OpenCloseHangarDoor(true);
-                    Echo("ACTIVATING DEPARTURE TIMER");
-                    departureTimer.ApplyAction(POWER_ON); //vent timer calls this programming block with argument "VENT CHECK"
-                    departureTimer.ApplyAction("Start");
+                    Echo("INITIATING UNDOCKING PROCEDURE");
+                    hangar.StartUndockingProcedure();
                     break;
-                case "SENSOR CHECK":
-                    if (CheckSensor())
-                    {
-                        Echo("SENSOR DETECTED SHIP");
-                        sensorTimer.ApplyAction(POWER_OFF);
-                        //close big door
-                        OpenCloseHangarDoor(false);
-                        SetOutsideScreen(stopTexture); //external LCDs to NO ENTRY
-                        Echo(string.Format("OUTTA LCDS SET TO {0}", stopTexture));
-                        //vents pressurise, wait until complete
-                        SetVentPressure(true);
-                        Echo("WAITING FOR PRESSURIZATION");
-                        ventTimer.ApplyAction(POWER_ON); //vent timer calls this programming block with argument "VENT CHECK"
-                        ventTimer.ApplyAction("Start");
-                    }
-                    break;
-                case "VENT CHECK":
-                    float pressure = GetVentPressure();
-                    Echo(string.Format("CURRENT PRESSURE: {0}%", pressure * 100));
-                    if (pressure == 1)
-                    {
-                        Echo("HANGER PRESSURIZED");
-                        ventTimer.ApplyAction(POWER_OFF);
-                        PowerWarningLights(green);
 
-                        PowerInteriorLights(true);
-                        SetInteriorDoorsLock(false);
-                        PowerExternalLights(false);
-                    }
+                case "SENSOR CHECK":
+                    Echo("SENSOR DETECTS SHIP");
+                    hangar.ShipHasLanded();
                     break;
+
+                case "VENT CHECK":
+                    Echo("HANGAR PRESSURIZED");
+                    hangar.HangarPressurized();
+                    break;
+
                 case "DEPARTURE CHECK":
-                    if (!IsDockOccupied())
-                    {
-                        departureTimer.ApplyAction(POWER_OFF);
-                        OpenCloseHangarDoor(false);
-                        SetOutsideScreen(stopTexture);
-                        PowerExternalLights(false);
-                        PowerWarningLights(red);
-                    }
+                    Echo("SHIP LEFT");
+                    hangar.ShipHasLeft();
                     break;
+
                 case "RENAME":
+                    Echo("RENAMING HANGAR");
                     string new_prefix = args[1].Trim();
-                    RenameAllBlocks(new_prefix);
+                    hangar.RenameHangar(new_prefix);
+
+                    string current_name = Me.CustomName;
+                    string new_name = current_name.Replace(hangar_name, new_prefix);
+                    Me.CustomName = new_name;
+
                     break;
+
                 default:
                     Echo(string.Format("ARUGUMENT {0} NOT RECOGNISED", argument));
                     break;
             }
-
-            foreach (IMyTextPanel panel in hangarSigns)
-            {
-                ApplyDisplay(hangarPrefix, panel);
-            }
-
         }
 
-
-
-        public void SetInteriorDoorsLock(bool locking)
+        /// <summary>
+        /// Class to represent a full hangar system. Provides methods to access all required blocks and to
+        /// initiate docking/undocking procedures
+        /// </summary>
+        class HangarSystem
         {
-            // change the lock status of the airlocks, and the door LCDs
-            if (locking)
+            Dictionary<string, IMyTerminalBlock> blocks;
+            Dictionary<string, List<IMyTerminalBlock>> grouped_blocks;
+            string hangar_prefix;
+            enum HangarStatus
             {
-                foreach (IMyDoor door in airlocks)
+                free,
+                docking,
+                pressurizing,
+                docked,
+                undocking
+            }
+
+            class DisplayTextures
+            {
+                public static string arrowTexture = "Arrow";
+                public static string warningTexture = "Danger";
+                public static string stopTexture = "No Entry";
+            }
+
+            HangarStatus status;
+            MyGridProgram source;
+            
+            public HangarSystem(string hangar_prefix, Dictionary<string, string> block_names, MyGridProgram source)
+            {
+                this.hangar_prefix = hangar_prefix;
+                this.source = source;
+
+                blocks = new Dictionary<string, IMyTerminalBlock>();
+                grouped_blocks = new Dictionary<string, List<IMyTerminalBlock>>();
+                GetBlocks(block_names);
+                string saved_status = source.Me.CustomData.Split(',')[0];
+                if(saved_status != "")
                 {
-                    door.ApplyAction("Open_Off");
-                    if (door.Status == DoorStatus.Closed)
+                    HangarStatus tmp_status;
+                    Enum.TryParse(saved_status, out tmp_status);
+                    SetHangarStatus(tmp_status);
+                }
+                else if(IsDocked())
+                {
+                    SetHangarStatus(HangarStatus.docked);
+                }
+                else
+                {
+                    SetHangarStatus(HangarStatus.free);
+                }
+
+                IMySensorBlock landing_sensor = (IMySensorBlock)blocks["landing_sensor"];
+                IMySensorBlock exit_sensor = (IMySensorBlock)blocks["exit_sensor"];
+
+                landing_sensor.DetectSmallShips = true;
+                landing_sensor.DetectSubgrids = true;
+                landing_sensor.DetectEnemy = false;
+
+                exit_sensor.DetectSmallShips = true;
+                exit_sensor.DetectSubgrids = true;
+                exit_sensor.DetectEnemy = false;
+            }
+
+            /// <summary>
+            /// 
+            /// </summary>
+            /// <returns></returns>
+            public bool IsDocked()
+            {
+                IMySensorBlock landing_sensor = (IMySensorBlock)blocks["landing_sensor"];
+                return landing_sensor.IsActive;
+            }
+
+            /// <summary>
+            /// Open the hangar door and prepare the hangar for a ship to dock.
+            /// </summary>
+            public void StartDockingProcedure()
+            {
+                if (status == HangarStatus.free)
+                {
+                    SetHangarStatus(HangarStatus.docking);
+                    //change graphic of external LCDs to arrow
+                    SetExternalScreens(DisplayTextures.arrowTexture);
+
+                    //open door
+                    OpenCloseHangarDoor(true);
+                    source.Echo("OPENING BIG DOOR");
+                    PowerLights(false, "group_int_lights");
+                    PowerLights(true, "group_ext_lights");
+                    PowerLights(true, "group_warn_lights");
+                    source.Echo("LIGHTS SET");
+
+                    //WAIT for sensor to detect ship landing
+                    source.Echo("WAITING FOR SENSOR TO DETECT SHIP");
+                }
+            }
+
+            /// <summary>
+            /// Close the Doors and begins to pressurize the hangar when a ship has landed.
+            /// Called by the landing sensor detecting a ship
+            /// </summary>
+            public void ShipHasLanded()
+            {
+                if(status == HangarStatus.docking)
+                {
+                    SetHangarStatus(HangarStatus.pressurizing);
+                    SetExternalScreens(DisplayTextures.stopTexture);
+                    OpenCloseHangarDoor(false);
+                    SetPressurize(true);
+                    PowerLights(false, "group_ext_lights");
+                    OpenCloseHangarDoor(false);
+                }                
+            }
+
+            /// <summary>
+            /// Close the doors after a ship has left the hangar
+            /// Called by the exit sensor stopping detection of a ship
+            /// </summary>
+            public void ShipHasLeft()
+            {
+                if (status == HangarStatus.undocking)
+                {
+                    SetHangarStatus(HangarStatus.free);
+                    SetExternalScreens(DisplayTextures.stopTexture);
+                    OpenCloseHangarDoor(false);
+                    PowerLights(false, "group_warn_lights");
+                    PowerLights(false, "group_ext_lights");
+                }
+            }
+
+            /// <summary>
+            /// Hangar has fully pressurized
+            /// Called by the vents getting to full pressure
+            /// </summary>
+            public void HangarPressurized()
+            {
+                if (status == HangarStatus.pressurizing)
+                {
+                    SetHangarStatus(HangarStatus.docked);
+                    PowerLights(false, "group_warn_lights");
+                    PowerLights(true, "group_int_lights");
+                    SetInteriorDoorsLock(false);
+                }
+            }
+
+            /// <summary>
+            /// Open the hangar door and prepare to let a ship leave.
+            /// </summary>
+            public void StartUndockingProcedure()
+            {
+                if(status == HangarStatus.docked)
+                {
+                    SetHangarStatus(HangarStatus.undocking);
+                    SetExternalScreens(DisplayTextures.warningTexture);//change graphic of external LCDs to WARNING
+                    SetInteriorDoorsLock(true);
+                    PowerLights(false, "group_int_lights");
+                    PowerLights(true, "group_warn_lights");
+                    PowerLights(true, "group_ext_lights");
+                    SetPressurize(false);
+                    OpenCloseHangarDoor(true);
+                }
+                else
+                {
+                    source.Echo("Unable to start Undocking Procedure: Already in progress");
+                }
+            }
+
+            private void PowerLights(bool power, string light_group_name)
+            {
+                foreach (IMyLightingBlock light in grouped_blocks[light_group_name])
+                {
+                    try
                     {
-                        door.ApplyAction(POWER_OFF);
+                        light.Enabled = power;
+                    }
+                    catch (Exception)
+                    {
+                        source.Echo("INTERIOR LIGHT FAILED");
                     }
                 }
+            }
 
-                foreach (IMyTextPanel panel in internalTextPanels)
+            private void OpenCloseHangarDoor(bool open)
+            {
+                foreach(IMyAirtightHangarDoor door in grouped_blocks["group_big_door"])
                 {
-                    panel.WritePublicText("LOCKED");
-                    panel.FontColor = new Color(255, 0, 0, 255);
-                }
-            }
-            else
-            {
-                foreach (IMyDoor door in airlocks)
-                {
-                    //door.ApplyAction("Open_Off");
-                    door.ApplyAction(POWER_ON);
-                }
-                foreach (IMyTextPanel panel in internalTextPanels)
-                {
-                    panel.WritePublicText("Access Granted  ");
-                    panel.FontColor = new Color(200, 255, 200, 255);
-                }
-            }
-        }
-
-        public void SetOutsideScreen(string id)
-        {
-            foreach (IMyTextPanel panel in externalTextPanels)
-            {
-                panel.ClearImagesFromSelection();
-                panel.AddImageToSelection(id);
-                panel.ShowTextureOnScreen();
-
-
-            }
-        }
-
-        public void OpenCloseHangarDoor(bool open)
-        {
-            foreach (IMyAirtightHangarDoor door in hangarDoors)
-            {
-                if (open)
-                {
-                    door.ApplyAction("Open_On");
-                }
-                else
-                {
-                    door.ApplyAction("Open_Off");
-                }
-            }
-        }
-
-        public void PowerWarningLights(Color lightColor)
-        {
-            try
-            {
-                foreach (IMyLightingBlock light in warningLights)
-                {
-                    light.Color = lightColor;
-                }
-            }
-            catch
-            {
-                Echo("Warning Lights FAILED");
-            }
-        }
-
-        public void PowerExternalLights(bool power)
-        {
-            foreach (IMyLightingBlock light in doorLights)
-            {
-                if (power)
-                {
-                    light.ApplyAction(POWER_ON);
-                }
-                else
-                {
-                    light.ApplyAction(POWER_OFF);
-                }
-            }
-        }
-
-        public void SetVentPressure(bool pressurize)
-        {
-            foreach (IMyAirVent vent in vents)
-            {
-                vent.Depressurize = !pressurize;
-            }
-        }
-
-        public bool CheckSensor()
-        {
-            if (sensor == null)
-            {
-                sensor = GetDockBlock<IMySensorBlock>(DOCK_SENSOR_NAME);
-            }
-            return sensor.IsActive;
-        }
-
-        public float GetVentPressure()
-        {
-            try
-            {
-                IMyAirVent vent = vents[0] as IMyAirVent;
-                return vent.GetOxygenLevel();
-            }
-            catch
-            {
-                Echo("VENT PRESSURE FAILED");
-                return -1;
-            }
-        }
-
-        public void PowerInteriorLights(bool power)
-        {
-            foreach (IMyLightingBlock light in interiorLights)
-            {
-                try
-                {
-                    if (power)
+                    if(open)
                     {
-                        light.ApplyAction(POWER_ON);
+                        door.OpenDoor();
                     }
                     else
                     {
-                        light.ApplyAction(POWER_OFF);
+                        door.CloseDoor();
+                    }
+                }
+            }
+
+            private void SetInteriorDoorsLock(bool locked)
+            {
+                foreach(IMyAirtightSlideDoor door in grouped_blocks["group_airlocks"])
+                {
+                    Color text_color;
+                    string text;
+                    if (locked)
+                    {
+                        door.CloseDoor();
+                        door.Enabled = false;
+                        text = "LOCKED";
+                        text_color = new Color(255, 0, 0);
+                    }
+                    else
+                    {
+                        door.Enabled = true;
+                        text = "ACCESS GRANTED";
+                        text_color = new Color(0, 255, 0);
+                    }
+                    foreach (IMyTextPanel lcd in grouped_blocks["group_int_lcds"])
+                    {
+                        lcd.WritePublicText(text);
+                        lcd.FontColor = text_color;
+                    }
+                }
+            }
+
+            /// <summary>
+            /// 
+            /// </summary>
+            /// <param name="pressurize"></param>
+            private void SetPressurize(bool pressurize)
+            {
+                foreach(IMyAirVent vent in grouped_blocks["group_vents"])
+                {
+                    vent.Depressurize = !pressurize;
+                }
+            }
+
+            private void SetExternalScreens(string display)
+            {
+                foreach (IMyTextPanel panel in grouped_blocks["group_ext_lcds"])
+                {
+                    panel.ClearImagesFromSelection();
+                    panel.AddImageToSelection(display);
+                    panel.ShowTextureOnScreen();
+                }
+            }
+
+            /// <summary>
+            /// 
+            /// </summary>
+            /// <param name="block_names"></param>
+            /// <returns></returns>
+            private void GetBlocks(Dictionary<string, string> block_names)
+            {
+                foreach(KeyValuePair<string, string> block_name in block_names)
+                {
+                    if(block_name.Key.Contains("group"))
+                    {
+                        List<IMyTerminalBlock> tmp_blocks = new List<IMyTerminalBlock>();
+                        GetBlockGroup(block_name.Value, tmp_blocks);
+                        this.grouped_blocks.Add(block_name.Key, tmp_blocks);
+
+                    }
+                    else
+                    {
+                        IMySensorBlock tmp_block = GetBlock<IMySensorBlock>(block_name.Value);
+                        blocks.Add(block_name.Key, tmp_block);
+                    }
+                }
+            }
+
+            public void RenameHangar(string new_name)
+            {
+                source.Echo("RENAMING HANGAR TO " + new_name);
+                foreach (KeyValuePair<string, List<IMyTerminalBlock>> list in grouped_blocks)
+                {
+                    foreach (IMyTerminalBlock block in list.Value)
+                    {
+                        try
+                        {
+                            string currentName = block.CustomName;
+                            string newName = currentName.Replace(hangar_prefix, new_name);
+                            source.Echo(newName);
+                            block.CustomName = newName;
+                        }
+                        catch
+                        {
+                            source.Echo(string.Format("MISSING BLOCK {0}", list.Key));
+                        }
+                    }
+                }
+                foreach (KeyValuePair<string, IMyTerminalBlock> block in blocks)
+                {
+                    try
+                    {
+                        string currentName = block.Value.CustomName;
+                        string newName = currentName.Replace(hangar_prefix, new_name);
+                        source.Echo(newName);
+                        block.Value.CustomName = newName;
+                    }
+                    catch
+                    {
+                        source.Echo(string.Format("Missing Block {0}", block.Key));
+                    }
+                }
+
+                hangar_prefix = new_name;
+                source.Echo("HANGAR RENAME COMPLETE");
+            }
+
+            private T GetBlock<T>(string blockName) where T : class, IMyTerminalBlock
+            {
+                T block = source.GridTerminalSystem.GetBlockWithName(string.Format("{0} - {1}", hangar_prefix, blockName)) as T;
+                source.Echo(string.Format("GOT {0}: {1}", blockName, block != null));
+                return block;
+            }
+
+            /// <summary>
+            /// 
+            /// </summary>
+            /// <param name="groupName"></param>
+            /// <param name="destList"></param>
+            private void GetBlockGroup(string groupName, List<IMyTerminalBlock> destList)
+            {
+                try
+                {
+                    string block_name = string.Format("{0} - {1}", hangar_prefix, groupName);
+                    source.GridTerminalSystem.SearchBlocksOfName(block_name, destList as List<IMyTerminalBlock>);
+                    if (destList.Count > 0)
+                    {
+                        source.Echo(string.Format("GOT {0}: TRUE", groupName));
+                    }
+                    else
+                    {
+                        source.Echo(string.Format("GOT {0}: FALSE", groupName));
                     }
                 }
                 catch (Exception)
                 {
-                    Echo("INTERIOR LIGHT FAILED");
+                    source.Echo(string.Format("GOT {0}: FALSE", groupName));
                 }
             }
-        }
 
-        public bool IsDockOccupied()
-        {
-            if (connector.Status == MyShipConnectorStatus.Connected)
+            private void SetHangarStatus(HangarStatus status)
             {
-                return true;
-            }
-            else return (exitSensor.IsActive || sensor.IsActive);
-            
-        }
-
-
-        //GET BLOCK FUNCTIONS BELOW
-
-        public void GetGroups()
-        {
-            vents = new List<IMyTerminalBlock>();
-
-            airlocks = new List<IMyTerminalBlock>();
-            hangarDoors = new List<IMyTerminalBlock>();
-
-            doorLights = new List<IMyTerminalBlock>();
-            interiorLights = new List<IMyTerminalBlock>();
-            warningLights = new List<IMyTerminalBlock>();
-
-            internalTextPanels = new List<IMyTerminalBlock>();
-            externalTextPanels = new List<IMyTerminalBlock>();
-            hangarSigns = new List<IMyTerminalBlock>();
-
-            GetDockBlockGroup(GROUP_AIRLOCK_NAME, airlocks);
-            GetDockBlockGroup(GROUP_DOOR_NAME, hangarDoors);
-            GetDockBlockGroup(GROUP_EXT_LCDS_NAME, externalTextPanels);
-            GetDockBlockGroup(GROUP_EXT_LIGHTS_NAME, doorLights);
-            GetDockBlockGroup(GROUP_INT_LCDS_NAME, internalTextPanels);
-            GetDockBlockGroup(GROUP_INT_LIGHTS_NAME, interiorLights);
-            GetDockBlockGroup(GROUP_VENT_NAME, vents);
-            GetDockBlockGroup(GROUP_WARN_LIGHTS_NAME, warningLights);
-            GetDockBlockGroup(GROUP_INTERNAL_DISPLAY_NAME, hangarSigns);
-
-            allGroups = new List<List<IMyTerminalBlock>>()
-            {
-                vents,
-                airlocks,
-                hangarDoors,
-                doorLights,
-                interiorLights,
-                warningLights,
-                internalTextPanels,
-                externalTextPanels,
-                hangarSigns,
-                otherBlocks
-            };
-        }
-
-        private T GetDockBlock<T>(string blockName) where T : class, IMyTerminalBlock
-        {
-            return GridTerminalSystem.GetBlockWithName(string.Format("{0} - {1}", hangarPrefix, blockName)) as T;
-        }
-
-        private void GetDockBlockGroup(string groupName, List<IMyTerminalBlock> destList)
-        {
-            try
-            {
-                string block_name = string.Format("{0} - {1}", hangarPrefix, groupName);
-                //Echo(block_name);
-                GridTerminalSystem.SearchBlocksOfName(block_name, destList as List<IMyTerminalBlock>);
-                if (destList.Count > 0)
+                this.status = status;
+                string data_string = status.ToString();
+                if(status == HangarStatus.docked)
                 {
-                    Echo(string.Format("GOT {0}: TRUE", groupName));
+                    IMySensorBlock sensor = (IMySensorBlock)blocks["landing_sensor"];
+                    string ship_name = sensor.LastDetectedEntity.Name;
+                    string ship_id = sensor.LastDetectedEntity.EntityId.ToString("X");
+                    ship_id = ship_id.Substring(ship_id.Length - 8);
+                    data_string = string.Format("{0},\n{1},\n{2}", data_string, ship_name, ship_id);
                 }
-                else
-                {
-                    Echo(string.Format("GOT {0}: FALSE", groupName));
-                }
-            }
-            catch (Exception)
-            {
-                Echo(string.Format("GOT {0}: FALSE", groupName));
-            }
+                source.Me.CustomData = data_string;  
+            } 
         }
-
-        private void ApplyDisplay(string hangarName, IMyTextPanel display)
-        {
-            hangarNum = hangarName.Replace("Hangar ", "").Trim();
-            int number = (int)Char.GetNumericValue(hangarNum[0]) - 1;
-            int letter;
-            if (hangarNum[1].Equals('A'))
-            {
-                letter = 0;
-            }
-            else
-            {
-                letter = 1;
-            }
-
-            String displayText = CreateDisplay(number, letter);
-            display.WritePublicText(displayText);
-            display.FontSize = 1.043f;
-
-        }
-
-        public string CreateDisplay(int number_pos, int letter_pos)
-        {
-            string[] letter = display_letters[letter_pos].Split('\n');
-            string[] number = display_numbers[number_pos].Split('\n');
-
-            string display_docknum = "";
-            display_docknum += display_border[0];
-            display_docknum += display_border[1];
-
-            for (int i = 0; i < letter.Length; i++)
-            {
-                display_docknum += "." + number[i] + "." + letter[i] + "\n";
-            }
-            display_docknum += display_border[1];
-            display_docknum += display_border[0];
-
-            display_docknum = display_docknum.Replace('.', black_square);
-            display_docknum = display_docknum.Replace('#', yellow_square);
-
-            string ship_info_string = "Ship ID: {0}\nShip Name: {1}";
-            string[] ship_info = getShipNameAndID();
-
-            display_docknum += "\n" + string.Format(ship_info_string, ship_info[0], ship_info[1]);
-
-            return display_docknum;
-        }
-
-        public string[] getShipNameAndID()
-        {
-            string shipIDHex;
-            string shipName;
-            if(CheckSensor())
-            {
-                shipIDHex = sensor.LastDetectedEntity.EntityId.ToString("X");
-                shipIDHex = shipIDHex.Substring(shipIDHex.Length - 8);
-                shipName = sensor.LastDetectedEntity.Name;
-            }
-            else if(connector.Status == MyShipConnectorStatus.Connected)
-            {
-                shipIDHex = connector.OtherConnector.EntityId.ToString("X");
-                shipIDHex = shipIDHex.Substring(shipIDHex.Length - 8);
-                shipName = connector.OtherConnector.CubeGrid.CustomName;
-            }
-            else
-            {
-                shipIDHex = "N/A";
-                shipName = "N/A";
-            }
-
-            if(shipIDHex.Length + "Ship Id: ".Length < DISPLAY_WIDTH)
-            {
-                shipIDHex = shipIDHex.PadLeft(DISPLAY_WIDTH - "Ship ID: ".Length);
-            }
-            else
-            {
-                shipIDHex = string.Format("\n{0}", shipIDHex);
-            }
-
-            if(shipName.Length + "Ship Name: ".Length < DISPLAY_WIDTH)
-            {
-                shipName = shipName.PadLeft(DISPLAY_WIDTH - "Ship Name: ".Length);
-            }
-            else
-            {
-                shipName = string.Format("\n{0}", shipName);
-            }
-            string[] shipInfo = new string[2];
-            shipInfo[0] = shipIDHex;
-            shipInfo[1] = shipName;
-            return shipInfo;
-        }
-
-        public void RenameAllBlocks(string new_prefix)
-        {
-            Echo("RENAMING HANGAR TO " + new_prefix);
-            foreach (List<IMyTerminalBlock> list in allGroups)
-            {
-                foreach (IMyTerminalBlock block in list)
-                {
-                    string currentName = block.CustomName;
-                    string newName = currentName.Replace(hangarPrefix, new_prefix);
-                    Echo(newName);
-                    block.CustomName = newName;
-                }
-            }
-            foreach (IMyTextPanel panel in hangarSigns)
-            {
-                ApplyDisplay(new_prefix, panel);
-            }
-
-            hangarPrefix = new_prefix;
-            Echo("HANGAR RENAME COMPLETE");
-        }
-
-        String[] display_border = new string[]
-        {
-          ".#.#.#.#.#.#.#.#.\n",
-          "#.......#.......#\n"
-        };
-
-        String[] display_letters = new string[]
-        {
-          "..####.\n"
-        + ".#...#.\n"
-        + ".#...#.\n"
-        + ".#####.\n"
-        + ".#...#.\n"
-        + ".#...#.\n"
-        + ".#...#.",
-
-          ".####..\n"
-        + ".#...#.\n"
-        + ".#...#.\n"
-        + ".####..\n"
-        + ".#...#.\n"
-        + ".#...#.\n"
-        + "..####.."
-        };
-
-        String[] display_numbers = new string[]
-        {
-          "...#...\n"
-        + "..##...\n"
-        + "...#...\n"
-        + "...#...\n"
-        + "...#...\n"
-        + "...#...\n"
-        + "..###..",
-
-          "..###..\n"
-        + ".#...#.\n"
-        + ".....#.\n"
-        + "...##..\n"
-        + "..#....\n"
-        + ".#.....\n"
-        + ".#####.",
-
-          "..###..\n"
-        + ".#...#.\n"
-        + ".....#.\n"
-        + "...##..\n"
-        + ".....#.\n"
-        + ".#...#.\n"
-        + "..###..",
-
-          "....##.\n"
-        + "...#.#.\n"
-        + "..#..#.\n"
-        + ".#...#.\n"
-        + ".#####.\n"
-        + ".....#.\n"
-        + ".....#.",
-
-          ".#####.\n"
-        + ".#.....\n"
-        + ".####..\n"
-        + ".....#.\n"
-        + ".....#.\n"
-        + ".#...#.\n"
-        + "..###..",
-
-          "..###..\n"
-        + ".#...#.\n"
-        + ".#.....\n"
-        + ".####..\n"
-        + ".#...#.\n"
-        + ".#...#.\n"
-        + "..###..",
-
-          ".#####.\n"
-        + ".....#.\n"
-        + "....#..\n"
-        + "...#...\n"
-        + "..#....\n"
-        + "..#....\n"
-        + "..#....",
-
-          "..###..\n"
-        + ".#...#.\n"
-        + ".#...#.\n"
-        + "..###..\n"
-        + ".#...#.\n"
-        + ".#...#.\n"
-        + "..###.."
-
-        };
-
-        char yellow_square = '\ue2f0';
-        char black_square = '\ue100';
     }
 }
