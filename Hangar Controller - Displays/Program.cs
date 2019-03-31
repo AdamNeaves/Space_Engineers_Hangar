@@ -23,6 +23,8 @@ namespace IngameScript
         // This script was deployed using the MDK api at $MDK_DATETIME$
         #endregion
         string PANEL_NAME = "LCD Display";
+        static float FONT_SIZE = 1.043f;
+        static int DISPLAY_WIDTH = 25;
 
         private List<DisplaySystem> displaySystems;
 
@@ -65,14 +67,18 @@ namespace IngameScript
                 this.computer = computer;
                 this.screens = panels;
                 this.display_string = BuildScreenString();
+                foreach(IMyTextPanel panel in panels)
+                {
+                    panel.FontSize = FONT_SIZE;
+                }
             }
 
             public void SetDisplays()
             {
                 string display = display_string;
 
-                string[] ship_info = GetShipInfo();
-                display = string.Format(display, ship_info[0], ship_info[1]);
+                Dictionary<string, string> ship_info = GetShipInfo();
+                display = string.Format(display, ship_info["id"].PadLeft(DISPLAY_WIDTH), ship_info["name"].PadLeft(DISPLAY_WIDTH));
 
                 foreach(IMyTextPanel screen in screens)
                 {
@@ -81,16 +87,16 @@ namespace IngameScript
 
             }
 
-            private string[] GetShipInfo()
+            private Dictionary<string, string> GetShipInfo()
             {
                 if (computer.CustomData.ToLower().Contains("docked"))
                 {
                     string[] data = computer.CustomData.Split(',');
-                    return new string[] { data[1].Trim(), data[2].Trim() };
+                    return new Dictionary<string, string> { { "name", data[2].Trim() }, { "id", data[1].Trim() } };
                 }
                 else
                 {
-                    return new string[] { "N/A", "N/A" };
+                    return new Dictionary<string, string> { { "name", "N/A" }, { "id", "N/A" } };
                 }
             }
 
@@ -130,7 +136,7 @@ namespace IngameScript
                 display_docknum = display_docknum.Replace('.', black_square);
                 display_docknum = display_docknum.Replace('#', yellow_square);
 
-                string ship_info_string = "Ship ID: {0}\nShip Name: {1}";
+                string ship_info_string = "Ship ID:\n{0}\nShip Name:\n{1}";
 
                 display_docknum += "\n" + ship_info_string;
 
