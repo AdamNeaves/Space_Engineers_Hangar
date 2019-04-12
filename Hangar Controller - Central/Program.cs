@@ -27,12 +27,13 @@ namespace IngameScript
 
         IMyRadioAntenna antenna;
         IMyTextPanel logger;
-
+        IMyBroadcastListener listener;
         string printString;
 
         const int MAX_LINES = 33;
         const int LOG_WIDTH = 48;
 
+        const string MESSAGE_TAG = "docking";
         const string LOGGER_HEADER = "                    DOCKING LOG                  \n" +
                                      "-TIME-----+-SHIP ID---EVENT----------------------";
 
@@ -42,17 +43,24 @@ namespace IngameScript
             int hangarCount = GetAllHangars();
             Echo(String.Format("Found {0} Hangar Controllers", hangarCount));
 
-            antenna = GridTerminalSystem.GetBlockWithName("Dock Request Antenna") as IMyRadioAntenna;
+            antenna = GridTerminalSystem.GetBlockWithName("Dock Request Antenna") as IMyRadioAntenna; //TODO: Remove specific name requrement
+            if(antenna != null)
+            {
+                antenna.AttachedProgrammableBlock = Me.EntityId;
+                this.listener = IGC.RegisterBroadcastListener(MESSAGE_TAG);
+                listener.SetMessageCallback("REQUEST_WAITING");
+
+            }
             logger = GridTerminalSystem.GetBlockWithName("LCD Logger") as IMyTextPanel;
             Echo(string.Format("ANTENNA FOUND: {0}", antenna != null));
             Echo(string.Format("LOGGER FOUND: {0}", logger != null));
             if (logger != null)
             {
-                string loggerText = logger.GetPublicText();
+                string loggerText = logger.GetText();
                 if (!loggerText.Contains("DOCKING LOG"))
                 {
                     Echo("LOGGER TEXT DOES NOT INCLUDE HEADER. Only Found:\n" + loggerText);
-                    logger.WritePublicText(LOGGER_HEADER);
+                    logger.WriteText(LOGGER_HEADER);
                 }
             }
         }
@@ -60,24 +68,21 @@ namespace IngameScript
         public void Main(string argument, UpdateType updateSource)
         {
             Echo(String.Format("UPDATE CALLED FROM {0}", updateSource.ToString()));
+            
+            string[] request;
+
+            // Get message from listener
+            MyIGCMessage message = listener.AcceptMessage();
+            Echo(string.Format("MESSAGE DATA: {0}", message.Data.ToString()));
+            request = message.Data.ToString().Split(',');
             long shipID;
-            string request;
-            //argument should be composed of two parts,
-            try
-            {
-                var args = argument.Split(',');
-                long.TryParse(args[0], out shipID); //the ID
-                request = args[1].Trim(); //the request to dock/undock
-            }
-            catch (Exception)
-            {
-                Echo("MALFORMED ARGUMENT. EXPECTED TWO STRING SEPARATED BY COMMA, INSTEAD GOT '" + argument + "'");
-                return;
-            }
-            Log(shipID, request);
+            long.TryParse(request[0], out shipID);
+
+            Log(shipID, request[1]);
             Hangar dock;
             string dockName;
-            switch (request)
+
+            switch (request[1])
             {
                 case "DOCK":
                     Echo(string.Format("DOCK REQUEST RECEIVED FROM SHIP: {0}", shipID.ToString("X")));
@@ -171,10 +176,14 @@ namespace IngameScript
 
         public void TransmitMessage(long shipID, string dockName, string action)
         {
-            string message = string.Format("{0} , {1} , {2}", shipID, dockName, action);
+            string message = string.Format("{0} , {1}", dockName, action);
             Log(shipID, dockName);
             Echo("TRANSMITTING MESSAGE: " + message);
-            antenna.TransmitMessage(message, MyTransmitTarget.Everyone);
+
+            IGC.SendUnicastMessage(shipID, "docking", message);
+            
+
+            //antenna.TransmitMessage(message, MyTransmitTarget.Everyone);
 
 
         }
@@ -183,7 +192,7 @@ namespace IngameScript
         {
             try
             {
-                string currentScreen = logger.GetPublicText();
+                string currentScreen = logger.GetText();
 
                 var lines = currentScreen.Split('\n').ToList<string>();
                 lines.Insert(2, line);
@@ -192,13 +201,13 @@ namespace IngameScript
                     lines.RemoveRange(MAX_LINES, lines.Count - MAX_LINES);
                 }
 
-                logger.WritePublicText("");
+                logger.WriteText("");
                 foreach (string newLine in lines)
                 {
-                    logger.WritePublicText(newLine + "\n", true);
+                    logger.WriteText(newLine + "\n", true);
                 }
             }
-            catch (NullReferenceException e)
+            catch (NullReferenceException)
             {
                 Echo("Logger Not Found");
             }

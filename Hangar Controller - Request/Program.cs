@@ -25,6 +25,7 @@ namespace IngameScript
 
         IMyTextPanel textPanel;
         IMyRadioAntenna antenna;
+        IMyBroadcastListener listener;
 
         const string dockAccept = "DOCKING REQUEST GRANTED.\nPROCEED TO DOCK {0}";
         const string dockReject = "DOCKING REQUEST DENIED.\nNO HANGARS AVAILABLE";
@@ -37,10 +38,13 @@ namespace IngameScript
             //antenna = GridTerminalSystem.GetBlockWithName("Docking Antenna") as IMyRadioAntenna;
 
             List<IMyRadioAntenna> antennas = new List<IMyRadioAntenna>();
-            GridTerminalSystem.GetBlocksOfType<IMyRadioAntenna>(antennas);
+            GridTerminalSystem.GetBlocksOfType(antennas);
             antenna = antennas[0];
             Echo(String.Format("ANTENNA FOUND: {0}", antenna.CustomName));
             antenna.EnableBroadcasting = true;
+            antenna.AttachedProgrammableBlock = Me.EntityId;
+            listener = IGC.RegisterBroadcastListener("docking");
+            listener.SetMessageCallback("DOCK_MESSAGE");
 
             Echo("CURRENT STATUS: " + Storage);
 
@@ -49,38 +53,39 @@ namespace IngameScript
         public void Main(string argument, UpdateType updateSource)
         {
 
-            if ((updateSource & UpdateType.Antenna) != 0)
+            if (argument == "DOCK_MESSAGE")
             {
                 Echo("RECEIVED FOLLOWING TRANSMISSION: " + argument);
                 //script ran by anntenna receiving broadcast, with matching ID ensuring the broadcast is for this ship
-                string shipID;
+
                 bool isAccepted = true;
-                string[] args;
                 //argument should be composed of two parts,
-                try
-                {
-                    args = argument.Split(',');
-                    shipID = args[0].Trim(); //the ID
-                    if (args[0].Equals("null"))
-                    {
-                        isAccepted = false;
-                    }
-                }
-                catch (Exception e)
-                {
-                    Echo("MALFORMED ARGUMENT. EXPECTED THREE STRINGS SEPARATED BY COMMA, INSTEAD GOT '" + argument + "'");
-                    return;
-                }
-                if (shipID == Me.CubeGrid.EntityId.ToString())
-                {
-                    SetPanel(args[2], isAccepted, args[1]);
-                }
+                //try
+                //{
+                //    args = argument.Split(',');
+                //    shipID = args[0].Trim(); //the ID
+                //    if (args[0].Equals("null"))
+                //    {
+                //        isAccepted = false;
+                //    }
+                //}
+                //catch (Exception)
+                //{
+                //    Echo("MALFORMED ARGUMENT. EXPECTED THREE STRINGS SEPARATED BY COMMA, INSTEAD GOT '" + argument + "'");
+                //    return;
+                //}
+
+                MyIGCMessage message = listener.AcceptMessage();
+                string data = message.Data.ToString();
+                isAccepted = !data.Equals("null");
+                //SetPanel(args[2], isAccepted, args[1]);
                 return;
             }
 
             Echo("REQUESTING " + argument);
             Echo(string.Format("BROADCASTING REQUEST: {0} , {1}", Me.CubeGrid.EntityId.ToString(), argument));
-            antenna.TransmitMessage(string.Format("{0} , {1}", Me.CubeGrid.EntityId.ToString(), argument), MyTransmitTarget.Everyone);
+            SendMessage(argument);
+            //antenna.TransmitMessage(string.Format("{0} , {1}", Me.CubeGrid.EntityId.ToString(), argument), MyTransmitTarget.Everyone);
         }
 
         public void SetPanel(string docking, bool isAccepted, string dockName)
@@ -110,10 +115,21 @@ namespace IngameScript
                     }
                 }
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 Echo("UNABLE TO DISPLAY TEXT. DOES LCD EXIST?");
             }
+        }
+
+        public void SendMessage(string request)
+        {
+            string message = string.Concat(Me.CubeGrid.EntityId.ToString(), ",", request);
+            //Dictionary<string, string> message = new Dictionary<string, string>
+            //{
+            //    {"ship_id", Me.CubeGrid.EntityId.ToString()},
+            //    {"request", request}
+            //};
+            IGC.SendBroadcastMessage("docking", message);
         }
     }
 }
