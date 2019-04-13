@@ -12,6 +12,7 @@ using VRage.Game.Components;
 using VRage.Game.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using VRage.Game.ObjectBuilders.Definitions;
+using VRage.Game.GUI.TextPanel;
 using VRage.Game;
 using VRageMath;
 
@@ -26,16 +27,17 @@ namespace IngameScript
         Queue<Hangar> dockControllers = new Queue<Hangar>();
 
         IMyRadioAntenna antenna;
-        IMyTextPanel logger;
+        IMyTextSurface logger;
         IMyBroadcastListener listener;
         string printString;
 
         const int MAX_LINES = 33;
         const int LOG_WIDTH = 48;
+        const float FONT_SIZE = 0.52f;
 
         const string MESSAGE_TAG = "docking";
         const string LOGGER_HEADER = "                    DOCKING LOG                  \n" +
-                                     "-TIME-----+-SHIP ID---EVENT----------------------";
+                                     "-TIME-----+-SHIP ID---EVENT-----------------------";
 
         public Program()
         {
@@ -54,15 +56,19 @@ namespace IngameScript
             logger = GridTerminalSystem.GetBlockWithName("LCD Logger") as IMyTextPanel;
             Echo(string.Format("ANTENNA FOUND: {0}", antenna != null));
             Echo(string.Format("LOGGER FOUND: {0}", logger != null));
-            if (logger != null)
+            if (logger == null)
             {
-                string loggerText = logger.GetText();
-                if (!loggerText.Contains("DOCKING LOG"))
-                {
-                    Echo("LOGGER TEXT DOES NOT INCLUDE HEADER. Only Found:\n" + loggerText);
-                    logger.WriteText(LOGGER_HEADER);
-                }
+                logger = Me.GetSurface(0);
             }
+            logger.ContentType = ContentType.TEXT_AND_IMAGE;
+            logger.FontSize = FONT_SIZE;
+            string loggerText = logger.GetText();
+            if (!loggerText.Contains("DOCKING LOG"))
+            {
+                Echo("LOGGER TEXT DOES NOT INCLUDE HEADER. Only Found:\n" + loggerText);
+                logger.WriteText(LOGGER_HEADER);
+            }
+            
         }
 
         public void Main(string argument, UpdateType updateSource)
