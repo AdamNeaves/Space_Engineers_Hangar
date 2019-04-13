@@ -12,6 +12,7 @@ using VRage.Game.Components;
 using VRage.Game.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using VRage.Game.ObjectBuilders.Definitions;
+using VRage.Game.GUI.TextPanel;
 using VRage.Game;
 using VRageMath;
 
@@ -24,8 +25,8 @@ namespace IngameScript
         #endregion
 
         /// <summary>
-        /// Names of blocks, minus the dock specific prefix. My setup uses "Dock 1 - Sensor" as the name of the piston of the first dock, for instance.
-        /// The Prefix (Dock X in this case) is gained from the name of the programming block this code runs on.
+        /// Names of blocks, minus the dock specific prefix. My setup uses "Hangar 1A - Sensor" as the name of the sensor of the first dock, for instance.
+        /// The Prefix (Hangar XX in this case) is gained from the name of the programming block this code runs on.
         /// </summary>
         private Dictionary<string, string> block_names = new Dictionary<string, string>
         {
@@ -49,7 +50,13 @@ namespace IngameScript
         public Program()
         {
             hangar_name = Me.CustomName.Split('-')[0].Trim(); //get the bit of name before the dash.
-            hangar = new HangarSystem(hangar_name, block_names, this);
+            Me.GetSurface(1).ContentType = ContentType.TEXT_AND_IMAGE;
+            Me.GetSurface(1).WriteText(hangar_name);
+            IMyTextSurface computerScreen = Me.GetSurface(0);
+            computerScreen.ContentType = ContentType.TEXT_AND_IMAGE;
+            computerScreen.FontSize = 1.7f;
+            
+            hangar = new HangarSystem(hangar_name, block_names, this, computerScreen);
             Echo("COMPLETED SETUP");
         }
 
@@ -61,6 +68,7 @@ namespace IngameScript
             {
                 case "DOCK":
                     Echo("INITIATING DOCKING PROCEDURE");
+
                     hangar.StartDockingProcedure();
                     break;
 
@@ -92,7 +100,7 @@ namespace IngameScript
                     string current_name = Me.CustomName;
                     string new_name = current_name.Replace(hangar_name, new_prefix);
                     Me.CustomName = new_name;
-
+                    Me.GetSurface(1).WriteText(new_prefix);
                     break;
 
                 default:
@@ -110,6 +118,7 @@ namespace IngameScript
             Dictionary<string, IMyTerminalBlock> blocks;
             Dictionary<string, List<IMyTerminalBlock>> grouped_blocks;
             string hangar_prefix;
+            IMyTextSurface screen;
             enum HangarStatus
             {
                 free,
@@ -129,11 +138,11 @@ namespace IngameScript
             HangarStatus status;
             MyGridProgram source;
             
-            public HangarSystem(string hangar_prefix, Dictionary<string, string> block_names, MyGridProgram source)
+            public HangarSystem(string hangar_prefix, Dictionary<string, string> block_names, MyGridProgram source, IMyTextSurface screen)
             {
                 this.hangar_prefix = hangar_prefix;
                 this.source = source;
-
+                this.screen = screen;
                 blocks = new Dictionary<string, IMyTerminalBlock>();
                 grouped_blocks = new Dictionary<string, List<IMyTerminalBlock>>();
                 GetBlocks(block_names);
@@ -320,7 +329,7 @@ namespace IngameScript
                     }
                     foreach (IMyTextPanel lcd in grouped_blocks["group_int_lcds"])
                     {
-                        lcd.WritePublicText(text);
+                        lcd.WriteText(text);
                         lcd.FontColor = text_color;
                     }
                 }
@@ -344,7 +353,6 @@ namespace IngameScript
                 {
                     panel.ClearImagesFromSelection();
                     panel.AddImageToSelection(display);
-                    panel.ShowTextureOnScreen();
                 }
             }
 
@@ -448,15 +456,20 @@ namespace IngameScript
             {
                 this.status = status;
                 string data_string = status.ToString();
-                if(status == HangarStatus.docked)
+                string screenString = "Status:\n {0}\nShip Name:\n {1}\nShip ID:\n {2}";
+                string ship_name = "";
+                string ship_id = "";
+                if (status == HangarStatus.docked)
                 {
                     IMySensorBlock sensor = (IMySensorBlock)blocks["landing_sensor"];
-                    string ship_name = sensor.LastDetectedEntity.Name;
-                    string ship_id = sensor.LastDetectedEntity.EntityId.ToString("X");
+                    ship_name = sensor.LastDetectedEntity.Name;
+                    ship_id = sensor.LastDetectedEntity.EntityId.ToString("X");
                     ship_id = ship_id.Substring(ship_id.Length - 8);
                     data_string = string.Format("{0},\n{1},\n{2}", data_string, ship_name, ship_id);
                 }
-                source.Me.CustomData = data_string;  
+                source.Me.CustomData = data_string;
+
+                screen.WriteText(string.Format(screenString, status.ToString(), ship_name, ship_id));
             } 
         }
     }
