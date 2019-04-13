@@ -47,7 +47,7 @@ namespace IngameScript
             if(antenna != null)
             {
                 antenna.AttachedProgrammableBlock = Me.EntityId;
-                this.listener = IGC.RegisterBroadcastListener(MESSAGE_TAG);
+                listener = IGC.RegisterBroadcastListener(MESSAGE_TAG);
                 listener.SetMessageCallback("REQUEST_WAITING");
 
             }
@@ -69,20 +69,20 @@ namespace IngameScript
         {
             Echo(String.Format("UPDATE CALLED FROM {0}", updateSource.ToString()));
             
-            string[] request;
-
             // Get message from listener
             MyIGCMessage message = listener.AcceptMessage();
-            Echo(string.Format("MESSAGE DATA: {0}", message.Data.ToString()));
-            request = message.Data.ToString().Split(',');
+            Dictionary<string, object> messageData = DecodeMessage((string)message.Data);
+            Echo(messageData["shipID"].ToString());
             long shipID;
-            long.TryParse(request[0], out shipID);
+            long.TryParse(messageData["shipID"].ToString(), out shipID);
+            string request = messageData["request"].ToString().Trim();
 
-            Log(shipID, request[1]);
+            Echo(string.Format("ID: {0}, request: {1}", shipID.ToString(), request));
+
+            Log(shipID, request);
             Hangar dock;
-            string dockName;
 
-            switch (request[1])
+            switch (request)
             {
                 case "DOCK":
                     Echo(string.Format("DOCK REQUEST RECEIVED FROM SHIP: {0}", shipID.ToString("X")));
@@ -91,13 +91,8 @@ namespace IngameScript
                     if (dock != null)
                     {
                         dock.RunProgram("DOCK");
-                        dockName = dock.name;
                     }
-                    else
-                    {
-                        dockName = "null";
-                    }
-                    TransmitMessage(shipID, dockName, "DOCK");
+                    TransmitMessage(shipID, dock, "DOCK");
                     break;
                 case "UNDOCK":
                     Echo(string.Format("UNDOCK REQUEST RECEIVED FROM SHIP: {0}", shipID.ToString("X")));
@@ -105,13 +100,8 @@ namespace IngameScript
                     if (dock != null)
                     {
                         dock.RunProgram("UNDOCK");
-                        dockName = dock.name;
                     }
-                    else
-                    {
-                        dockName = "null";
-                    }
-                    TransmitMessage(shipID, dockName, "UNDOCK");
+                    TransmitMessage(shipID, dock, "UNDOCK");
                     break;
                 default:
                     return;
@@ -174,10 +164,28 @@ namespace IngameScript
             return null; //can't find the ship!
         }
 
-        public void TransmitMessage(long shipID, string dockName, string action)
+        public void TransmitMessage(long shipID, Hangar dock, string action)
         {
-            string message = string.Format("{0} , {1}", dockName, action);
-            Log(shipID, dockName);
+            Dictionary<string, object> messageDict = new Dictionary<string, object>
+            {
+                ["location"] = dock.GetDockPosition(),
+                ["action"] = action
+            };
+
+            string dock_string;
+            if(dock != null)
+            {
+                dock_string = dock.name;
+            }
+            else
+            {
+                dock_string = "null";
+            }
+            messageDict["dock"] = dock_string;
+
+            string message = EncodeMessage(messageDict);
+
+            Log(shipID, dock.name);
             Echo("TRANSMITTING MESSAGE: " + message);
 
             IGC.SendUnicastMessage(shipID, "docking", message);
@@ -215,51 +223,117 @@ namespace IngameScript
 
         public void Log(long shipID, string request)
         {
-            string shipIDHex = shipID.ToString("X");
-            shipIDHex = shipIDHex.Substring(shipIDHex.Length - 8);
-            //string printString;
-            DateTime time = DateTime.Now;
-            string timeString = string.Format("{0:00}{1:00}{2:00}{3:00}", time.Month, time.Day, time.Hour, time.Minute);
-            switch (request) //this method is either called when its a request from a ship, or a response
+            try
             {
-                case "DOCK":
-                    printString = string.Format(" {0} | {1}: DOCK REQ: ", timeString, shipIDHex);
-                    break;
-                case "UNDOCK":
-                    printString = string.Format(" {0} | {1}: RELEASE REQ: ", timeString, shipIDHex);
-                    break;
-                default:
-                    Echo("TRANMISSION TO SHIP");
+                string shipIDHex = shipID.ToString("X");
+                shipIDHex = shipIDHex.Substring(shipIDHex.Length - 8);
+                //string printString;
+                DateTime time = DateTime.Now;
+                string timeString = string.Format("{0:00}{1:00}{2:00}{3:00}", time.Month, time.Day, time.Hour, time.Minute);
+                switch (request) //this method is either called when its a request from a ship, or a response
+                {
+                    case "DOCK":
+                        printString = string.Format(" {0} | {1}: DOCK REQ: ", timeString, shipIDHex);
+                        break;
+                    case "UNDOCK":
+                        printString = string.Format(" {0} | {1}: RELEASE REQ: ", timeString, shipIDHex);
+                        break;
+                    default:
 
-                    int padWidth = LOG_WIDTH - printString.Length;
-                    if (!request.Equals("null"))
-                    {
-
-
-                        if (printString.Contains(shipIDHex) && printString.Contains("RELEASE"))
+                        int padWidth = LOG_WIDTH - printString.Length;
+                        if (!request.Equals("null"))
                         {
-                            printString = string.Format("{0}{1}", printString, string.Format("{0} CLEAR", request).PadLeft(padWidth));
-                            WriteToScreen(printString);
-                            return;
+
+
+                            if (printString.Contains(shipIDHex) && printString.Contains("RELEASE"))
+                            {
+                                printString = string.Format("{0}{1}", printString, string.Format("{0} CLEAR", request).PadLeft(padWidth));
+                                WriteToScreen(printString);
+                                return;
+                            }
+                            if (printString.Contains(shipIDHex) && printString.Contains("DOCK"))
+                            {
+                                printString = string.Format("{0}{1}", printString, string.Format("ASSIGNED {0}", request).PadLeft(padWidth));
+                                WriteToScreen(printString);
+                                return;
+                            }
+
+
                         }
-                        if (printString.Contains(shipIDHex) && printString.Contains("DOCK"))
+                        else
                         {
-                            printString = string.Format("{0}{1}", printString, string.Format("ASSIGNED {0}", request).PadLeft(padWidth));
+                            //printString = string.Format(" {0} | {1}: REQUEST DENIED", timeString, shipID.ToString("X"));
+                            printString = string.Format("{0}{1}", printString, "DENIED".PadLeft(padWidth));
                             WriteToScreen(printString);
-                            return;
                         }
 
-
-                    }
-                    else
-                    {
-                        //printString = string.Format(" {0} | {1}: REQUEST DENIED", timeString, shipID.ToString("X"));
-                        printString = string.Format("{0}{1}", printString, "DENIED".PadLeft(padWidth));
-                        WriteToScreen(printString);
-                    }
-
-                    break;
+                        break;
+                }
             }
+            catch
+            {
+                return;
+            }
+        }
+
+        private string EncodeMessage(Dictionary<string, object> dict)
+        {
+            Echo("ENCODING MESSAGE");
+            string message = "";
+            foreach (KeyValuePair<string, object> item in dict)
+            {
+                string type = item.Value.GetType().Name;
+                string itemString = string.Format("{0}: {1}, {2}\n", item.Key, item.Value.ToString(), type);
+                Echo(string.Format("Message Part: {0}", itemString));
+                message += itemString;
+            }
+
+            return message;
+        }
+
+        private Dictionary<string, object> DecodeMessage(string message)
+        {
+            Echo(string.Format("Decoding Message:\n {0}", message));
+            Dictionary<string, object> dict = new Dictionary<string, object>();
+            string[] message_parts = message.Split('\n');
+            char[] delim = ":".ToCharArray();
+            foreach (string part in message_parts)
+            {
+                if (part == "")
+                {
+                    break;
+                }
+                //Echo(string.Format("Message Part:\n {0}", part));
+                string[] values = part.Split(delim);
+                string key = values[0];
+                values = values[1].Split(',');
+                string type = values[1];
+                object value;
+                switch (type)
+                {
+                    case "int":
+                        value = Int32.Parse(values[0]);
+                        break;
+                    case "float":
+                        value = float.Parse(values[0]);
+                        break;
+                    case "long":
+                    case "Int64":
+                        value = long.Parse(values[0]);
+                        break;
+                    case "Vector3D":
+                        string[] vectors = values[0].Split(',');
+                        value = new Vector3(float.Parse(vectors[0]), float.Parse(vectors[1]), float.Parse(vectors[2]));
+                        break;
+                    default:
+                        value = values[0];
+                        break;
+                }
+
+                dict.Add(key, value);
+            }
+            Echo("MESSAGE DECODED");
+            return dict;
         }
 
         public class Hangar
@@ -323,7 +397,7 @@ namespace IngameScript
                 }
             }
 
-            public Vector3 getDockPosition()
+            public Vector3D GetDockPosition()
             {
                 //UNUSED SO FAR
                 return controller.GetPosition();

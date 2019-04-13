@@ -53,37 +53,21 @@ namespace IngameScript
         public void Main(string argument, UpdateType updateSource)
         {
 
-            if (argument == "DOCK_MESSAGE")
+            if (updateSource == UpdateType.IGC)
             {
                 Echo("RECEIVED FOLLOWING TRANSMISSION: " + argument);
                 //script ran by anntenna receiving broadcast, with matching ID ensuring the broadcast is for this ship
 
                 bool isAccepted = true;
-                //argument should be composed of two parts,
-                //try
-                //{
-                //    args = argument.Split(',');
-                //    shipID = args[0].Trim(); //the ID
-                //    if (args[0].Equals("null"))
-                //    {
-                //        isAccepted = false;
-                //    }
-                //}
-                //catch (Exception)
-                //{
-                //    Echo("MALFORMED ARGUMENT. EXPECTED THREE STRINGS SEPARATED BY COMMA, INSTEAD GOT '" + argument + "'");
-                //    return;
-                //}
-
+               
                 MyIGCMessage message = listener.AcceptMessage();
-                string data = message.Data.ToString();
-                isAccepted = !data.Equals("null");
+                Dictionary<string, object> messageData = DecodeMessage((string)message.Data);
+                isAccepted = !messageData["request"].Equals("null");
                 //SetPanel(args[2], isAccepted, args[1]);
                 return;
             }
 
             Echo("REQUESTING " + argument);
-            Echo(string.Format("BROADCASTING REQUEST: {0} , {1}", Me.CubeGrid.EntityId.ToString(), argument));
             SendMessage(argument);
             //antenna.TransmitMessage(string.Format("{0} , {1}", Me.CubeGrid.EntityId.ToString(), argument), MyTransmitTarget.Everyone);
         }
@@ -123,13 +107,81 @@ namespace IngameScript
 
         public void SendMessage(string request)
         {
-            string message = string.Concat(Me.CubeGrid.EntityId.ToString(), ",", request);
+            //string message = string.Concat(Me.CubeGrid.EntityId.ToString(), ",", request);
+
+            Dictionary<string, object> message = new Dictionary<string, object>
+            {
+                ["shipID"] = Me.CubeGrid.EntityId,
+                ["request"] = request
+            };
+
             //Dictionary<string, string> message = new Dictionary<string, string>
             //{
             //    {"ship_id", Me.CubeGrid.EntityId.ToString()},
             //    {"request", request}
             //};
-            IGC.SendBroadcastMessage("docking", message);
+            Echo(string.Format("Sending message:\n{0}", EncodeMessage(message)));
+            IGC.SendBroadcastMessage("docking", EncodeMessage(message));
+        }
+
+        private string EncodeMessage(Dictionary<string, object> dict)
+        {
+            Echo("ENCODING MESSAGE");
+            string message = "";
+            foreach (KeyValuePair<string, object> item in dict)
+            {
+                string type = item.Value.GetType().Name;
+                string itemString = string.Format("{0}: {1}, {2}\n", item.Key, item.Value.ToString(), type);
+                Echo(string.Format("Message Part: {0}", itemString));
+                message += itemString;
+            }
+
+            return message;
+        }
+
+        private Dictionary<string, object> DecodeMessage(string message)
+        {
+            Echo(string.Format("Decoding Message:\n {0}", message));
+            Dictionary<string, object> dict = new Dictionary<string, object>();
+            string[] message_parts = message.Split('\n');
+            char[] delim = ":".ToCharArray();
+            foreach (string part in message_parts)
+            {
+                if (part == "")
+                {
+                    break;
+                }
+                //Echo(string.Format("Message Part:\n {0}", part));
+                string[] values = part.Split(delim);
+                string key = values[0];
+                values = values[1].Split(',');
+                string type = values[1];
+                object value;
+                switch (type)
+                {
+                    case "int":
+                        value = Int32.Parse(values[0]);
+                        break;
+                    case "float":
+                        value = float.Parse(values[0]);
+                        break;
+                    case "long":
+                    case "Int64":
+                        value = long.Parse(values[0]);
+                        break;
+                    case "Vector3D":
+                        string[] vectors = values[0].Split(',');
+                        value = new Vector3(float.Parse(vectors[0]), float.Parse(vectors[1]), float.Parse(vectors[2]));
+                        break;
+                    default:
+                        value = values[0];
+                        break;
+                }
+
+                dict.Add(key, value);
+            }
+            Echo("MESSAGE DECODED");
+            return dict;
         }
     }
 }
