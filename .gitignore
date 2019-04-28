@@ -263,3 +263,5 @@ __pycache__/
 #Space Engineers Specific Stuff
 MDK/
 *.csproj
+
+*.pdn

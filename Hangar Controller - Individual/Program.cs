@@ -146,9 +146,18 @@ namespace IngameScript
                 blocks = new Dictionary<string, IMyTerminalBlock>();
                 grouped_blocks = new Dictionary<string, List<IMyTerminalBlock>>();
                 GetBlocks(block_names);
-                string saved_status = source.Me.CustomData.Split(',')[0];
+                string saved_status = "";
+                try
+                {
+                   saved_status = source.Me.CustomData.Split(',')[0];
+                }
+                catch(Exception e)
+                {
+                    source.Echo(string.Format("ERROR GETTING SAVED INFO: {0}", e.Message));
+                }
                 if(saved_status != "")
                 {
+                    source.Echo(string.Format("Saved Info:\n{0}", saved_status));
                     HangarStatus tmp_status;
                     Enum.TryParse(saved_status, out tmp_status);
                     SetHangarStatus(tmp_status);
@@ -454,17 +463,29 @@ namespace IngameScript
 
             private void SetHangarStatus(HangarStatus status)
             {
+                source.Echo(string.Format("Setting Hangar Status to: {0}", status.ToString()));
                 this.status = status;
                 string data_string = status.ToString();
                 string screenString = "Status:\n {0}\nShip Name:\n {1}\nShip ID:\n {2}";
                 string ship_name = "";
                 string ship_id = "";
+                string data = source.Me.CustomData;
                 if (status == HangarStatus.docked)
                 {
-                    IMySensorBlock sensor = (IMySensorBlock)blocks["landing_sensor"];
-                    ship_name = sensor.LastDetectedEntity.Name;
-                    ship_id = sensor.LastDetectedEntity.EntityId.ToString("X");
-                    ship_id = ship_id.Substring(ship_id.Length - 8);
+                    string[] saved_info = source.Me.CustomData.Split(',');
+                    if (saved_info.Count() != 3)
+                    {
+                        IMySensorBlock sensor = (IMySensorBlock)blocks["landing_sensor"];
+                        ship_name = sensor.LastDetectedEntity.Name;
+                        ship_id = sensor.LastDetectedEntity.EntityId.ToString("X");
+                    }
+                    else
+                    {
+                        ship_name = saved_info[1].Trim();
+                        ship_id = saved_info[2].Trim();
+                    }
+
+                    ship_id = ship_id.Substring(Math.Max(0, ship_id.Length - 8));
                     data_string = string.Format("{0},\n{1},\n{2}", data_string, ship_name, ship_id);
                 }
                 source.Me.CustomData = data_string;

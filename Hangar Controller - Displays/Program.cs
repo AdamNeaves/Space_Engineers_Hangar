@@ -65,8 +65,8 @@ namespace IngameScript
             {
                 this.hangar_name = hangar_name;
                 this.computer = computer;
-                this.screens = panels;
-                this.display_string = BuildScreenString();
+                screens = panels;
+                display_string = BuildScreenString();
                 foreach(IMyTextPanel panel in panels)
                 {
                     panel.FontSize = FONT_SIZE;
@@ -82,7 +82,7 @@ namespace IngameScript
 
                 foreach(IMyTextPanel screen in screens)
                 {
-                    screen.WritePublicText(display);
+                    screen.WriteText(display);
                 }
 
             }
@@ -143,13 +143,13 @@ namespace IngameScript
                 return display_docknum;
             }
 
-            string[] display_border = new string[]
+            readonly string[] display_border = new string[]
             {
           ".#.#.#.#.#.#.#.#.\n",
           "#.......#.......#\n"
             };
 
-            string[] display_letters = new string[]
+            readonly string[] display_letters = new string[]
             {
               "..####.\n"
             + ".#...#.\n"
@@ -168,7 +168,7 @@ namespace IngameScript
             + "..####.."
                 };
 
-            string[] display_numbers = new string[]
+            readonly string[] display_numbers = new string[]
             {
               "...#...\n"
             + "..##...\n"
@@ -236,97 +236,8 @@ namespace IngameScript
 
             };
 
-            char yellow_square = '\ue2f0';
-            char black_square = '\ue100';
+            readonly char yellow_square = '\ue2f0';
+            readonly char black_square = '\ue100';
         }
     }
 }
-
-//private void ApplyDisplay(string hangarName, IMyTextPanel display)
-//{
-//    hangarNum = hangarName.Replace("Hangar ", "").Trim();
-//    int number = (int)Char.GetNumericValue(hangarNum[0]) - 1;
-//    int letter;
-//    if (hangarNum[1].Equals('A'))
-//    {
-//        letter = 0;
-//    }
-//    else
-//    {
-//        letter = 1;
-//    }
-
-//    String displayText = CreateDisplay(number, letter);
-//    Echo("APPLYING DISPLAY");
-//    display.WritePublicText(displayText);
-//    display.FontSize = 1.043f;
-
-//}
-
-//public string CreateDisplay(int number_pos, int letter_pos)
-//{
-//    Echo(string.Format("CREATING DISPLAY, LETTER {0}, NUMBER {1}", letter_pos, number_pos));
-//    string[] letter = display_letters[letter_pos].Split('\n');
-//    string[] number = display_numbers[number_pos].Split('\n');
-
-//    string display_docknum = "";
-//    display_docknum += display_border[0];
-//    display_docknum += display_border[1];
-//    Echo("TOP BORDER ADDED");
-//    for (int i = 0; i < letter.Length; i++)
-//    {
-//        display_docknum += "." + number[i] + "." + letter[i] + "\n";
-//    }
-//    Echo("BOTTOM BORDER ADDED");
-//    display_docknum += display_border[1];
-//    display_docknum += display_border[0];
-
-//    display_docknum = display_docknum.Replace('.', black_square);
-//    display_docknum = display_docknum.Replace('#', yellow_square);
-
-//    string ship_info_string = "Ship ID: {0}\nShip Name: {1}";
-//    string[] ship_info = getShipNameAndID();
-
-//    display_docknum += "\n" + string.Format(ship_info_string, ship_info[0], ship_info[1]);
-
-//    return display_docknum;
-//}
-
-//public string[] getShipNameAndID()
-//{
-//    string shipIDHex;
-//    string shipName;
-//    if(CheckSensor())
-//    {
-//        shipIDHex = sensor.LastDetectedEntity.EntityId.ToString("X");
-//        shipIDHex = shipIDHex.Substring(shipIDHex.Length - 8);
-//        shipName = sensor.LastDetectedEntity.Name;
-//    }
-//    else
-//    {
-//        shipIDHex = "N/A";
-//        shipName = "N/A";
-//    }
-
-//    if(shipIDHex.Length + "Ship Id: ".Length < DISPLAY_WIDTH)
-//    {
-//        shipIDHex = shipIDHex.PadLeft(DISPLAY_WIDTH - "Ship ID: ".Length);
-//    }
-//    else
-//    {
-//        shipIDHex = string.Format("\n{0}", shipIDHex);
-//    }
-
-//    if(shipName.Length + "Ship Name: ".Length < DISPLAY_WIDTH)
-//    {
-//        shipName = shipName.PadLeft(DISPLAY_WIDTH - "Ship Name: ".Length);
-//    }
-//    else
-//    {
-//        shipName = string.Format("\n{0}", shipName);
-//    }
-//    string[] shipInfo = new string[2];
-//    shipInfo[0] = shipIDHex;
-//    shipInfo[1] = shipName;
-//    return shipInfo;
-//}
