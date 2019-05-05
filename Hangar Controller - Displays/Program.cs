@@ -70,6 +70,8 @@ namespace IngameScript
                 foreach(IMyTextPanel panel in panels)
                 {
                     panel.FontSize = FONT_SIZE;
+                    panel.Font = "monospace";
+                    panel.TextPadding = 0f;
                 }
             }
 
@@ -82,6 +84,7 @@ namespace IngameScript
 
                 foreach(IMyTextPanel screen in screens)
                 {
+                    
                     screen.WriteText(display);
                 }
 

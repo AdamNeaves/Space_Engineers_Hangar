@@ -52,9 +52,12 @@ namespace IngameScript
             hangar_name = Me.CustomName.Split('-')[0].Trim(); //get the bit of name before the dash.
             Me.GetSurface(1).ContentType = ContentType.TEXT_AND_IMAGE;
             Me.GetSurface(1).WriteText(hangar_name);
+            Me.GetSurface(1).FontSize = 8.0f;
+            Me.GetSurface(1).Alignment = TextAlignment.CENTER;
             IMyTextSurface computerScreen = Me.GetSurface(0);
             computerScreen.ContentType = ContentType.TEXT_AND_IMAGE;
             computerScreen.FontSize = 1.7f;
+            computerScreen.TextPadding = 0f;
             
             hangar = new HangarSystem(hangar_name, block_names, this, computerScreen);
             Echo("COMPLETED SETUP");
