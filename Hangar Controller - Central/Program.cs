@@ -39,7 +39,7 @@ namespace IngameScript
         const string LOGGER_HEADER = "                    DOCKING LOG                  \n" +
                                      "-TIME-----+-SHIP ID---EVENT-----------------------";
 
-        const string MESSAGE_ACCEPT_REQUEST = "Docking Request - GRANTED\nProceed to {0}\n\nWelcome to Lovelace Station!\nWatch your speed!";
+        const string MESSAGE_ACCEPT_REQUEST = "Docking Request - GRANTED\nProceed to {0}\n\nWelcome to {1}!\nWatch your speed!";
         const string MESSAGE_REJECT_REQUEST = "Docking Request - DENIED \nNO HANGARS AVAILABLE\nPlease wait before re-sending request";
         const string MESSAGE_ACCEPT_LEAVE =   "Release Request - GRANTED\nAllow doors to open fully before exit\n\nWatch your speed!";
         const string MESSAGE_REJECT_LEAVE =   "ERROR - Ship not currently docked.";
@@ -194,7 +194,7 @@ namespace IngameScript
             {
                 if(accepted)
                 {
-                    message_text = string.Format(MESSAGE_ACCEPT_REQUEST, dock.name);
+                    message_text = string.Format(MESSAGE_ACCEPT_REQUEST, dock.name, Me.CubeGrid.CustomName);
                 }
                 else
                 {
