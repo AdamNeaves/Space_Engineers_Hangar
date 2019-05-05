@@ -12,6 +12,7 @@ using VRage.Game.Components;
 using VRage.Game.ModAPI.Ingame;
 using VRage.Game.ModAPI.Ingame.Utilities;
 using VRage.Game.ObjectBuilders.Definitions;
+using VRage.Game.GUI.TextPanel;
 using VRage.Game;
 using VRageMath;
 
@@ -26,16 +27,24 @@ namespace IngameScript
         Queue<Hangar> dockControllers = new Queue<Hangar>();
 
         IMyRadioAntenna antenna;
-        IMyTextPanel logger;
+        IMyTextSurface logger;
         IMyBroadcastListener listener;
         string printString;
 
         const int MAX_LINES = 33;
         const int LOG_WIDTH = 48;
+        const float FONT_SIZE = 0.52f;
 
         const string MESSAGE_TAG = "docking";
         const string LOGGER_HEADER = "                    DOCKING LOG                  \n" +
-                                     "-TIME-----+-SHIP ID---EVENT----------------------";
+                                     "-TIME-----+-SHIP ID---EVENT-----------------------";
+
+        const string MESSAGE_ACCEPT_REQUEST = "Docking Request - GRANTED\nProceed to {0}\n\nWelcome to {1}!\nWatch your speed!";
+        const string MESSAGE_REJECT_REQUEST = "Docking Request - DENIED \nNO HANGARS AVAILABLE\nPlease wait before re-sending request";
+        const string MESSAGE_ACCEPT_LEAVE =   "Release Request - GRANTED\nAllow doors to open fully before exit\n\nWatch your speed!";
+        const string MESSAGE_REJECT_LEAVE =   "ERROR - Ship not currently docked.";
+
+
 
         public Program()
         {
@@ -54,15 +63,19 @@ namespace IngameScript
             logger = GridTerminalSystem.GetBlockWithName("LCD Logger") as IMyTextPanel;
             Echo(string.Format("ANTENNA FOUND: {0}", antenna != null));
             Echo(string.Format("LOGGER FOUND: {0}", logger != null));
-            if (logger != null)
+            if (logger == null)
             {
-                string loggerText = logger.GetText();
-                if (!loggerText.Contains("DOCKING LOG"))
-                {
-                    Echo("LOGGER TEXT DOES NOT INCLUDE HEADER. Only Found:\n" + loggerText);
-                    logger.WriteText(LOGGER_HEADER);
-                }
+                logger = Me.GetSurface(0);
             }
+            logger.ContentType = ContentType.TEXT_AND_IMAGE;
+            logger.FontSize = FONT_SIZE;
+            string loggerText = logger.GetText();
+            if (!loggerText.Contains("DOCKING LOG"))
+            {
+                Echo("LOGGER TEXT DOES NOT INCLUDE HEADER. Only Found:\n" + loggerText);
+                logger.WriteText(LOGGER_HEADER);
+            }
+            
         }
 
         public void Main(string argument, UpdateType updateSource)
@@ -72,36 +85,40 @@ namespace IngameScript
             // Get message from listener
             MyIGCMessage message = listener.AcceptMessage();
             Dictionary<string, object> messageData = DecodeMessage((string)message.Data);
+            long requestSource = message.Source;
             Echo(messageData["shipID"].ToString());
-            long shipID;
-            long.TryParse(messageData["shipID"].ToString(), out shipID);
+            long shipID = (long)messageData["shipID"];
             string request = messageData["request"].ToString().Trim();
 
             Echo(string.Format("ID: {0}, request: {1}", shipID.ToString(), request));
 
             Log(shipID, request);
             Hangar dock;
-
+            bool accepted = false;
             switch (request)
             {
+
                 case "DOCK":
                     Echo(string.Format("DOCK REQUEST RECEIVED FROM SHIP: {0}", shipID.ToString("X")));
                     dock = GetAvailableDock();
-
+                    
                     if (dock != null)
                     {
                         dock.RunProgram("DOCK");
+                        accepted = true;
                     }
-                    TransmitMessage(shipID, dock, "DOCK");
+                    TransmitMessage(requestSource, shipID, dock, "DOCK", accepted);
                     break;
                 case "UNDOCK":
                     Echo(string.Format("UNDOCK REQUEST RECEIVED FROM SHIP: {0}", shipID.ToString("X")));
                     dock = GetDockOfShip(shipID);
+
                     if (dock != null)
                     {
                         dock.RunProgram("UNDOCK");
+                        accepted = true;
                     }
-                    TransmitMessage(shipID, dock, "UNDOCK");
+                    TransmitMessage(requestSource, shipID, dock, "UNDOCK", accepted);
                     break;
                 default:
                     return;
@@ -164,31 +181,44 @@ namespace IngameScript
             return null; //can't find the ship!
         }
 
-        public void TransmitMessage(long shipID, Hangar dock, string action)
+        public void TransmitMessage(long requestSource, long shipID, Hangar dock, string action, bool accepted)
         {
             Dictionary<string, object> messageDict = new Dictionary<string, object>
             {
-                ["location"] = dock.GetDockPosition(),
-                ["action"] = action
+                //["location"] = dock.GetDockPosition(),
+                ["action"] = action,
+                ["accepted"] = accepted
             };
-
-            string dock_string;
-            if(dock != null)
+            string message_text;
+            if(action.ToLower() == "dock")
             {
-                dock_string = dock.name;
+                if(accepted)
+                {
+                    message_text = string.Format(MESSAGE_ACCEPT_REQUEST, dock.name, Me.CubeGrid.CustomName);
+                }
+                else
+                {
+                    message_text = MESSAGE_REJECT_REQUEST;
+                }
             }
             else
             {
-                dock_string = "null";
+                if(accepted)
+                {
+                    message_text = MESSAGE_ACCEPT_LEAVE;
+                }
+                else
+                {
+                    message_text = MESSAGE_REJECT_LEAVE;
+                }
             }
-            messageDict["dock"] = dock_string;
-
+            messageDict["message"] = message_text;
             string message = EncodeMessage(messageDict);
-
-            Log(shipID, dock.name);
+            string dock_string = (dock != null) ? dock.name : "null";
+            Log(shipID, dock_string);
             Echo("TRANSMITTING MESSAGE: " + message);
 
-            IGC.SendUnicastMessage(shipID, "docking", message);
+            IGC.SendUnicastMessage(requestSource, "docking", message);
             
 
             //antenna.TransmitMessage(message, MyTransmitTarget.Everyone);
@@ -282,9 +312,10 @@ namespace IngameScript
             string message = "";
             foreach (KeyValuePair<string, object> item in dict)
             {
-                string type = item.Value.GetType().Name;
-                string itemString = string.Format("{0}: {1}, {2}\n", item.Key, item.Value.ToString(), type);
-                Echo(string.Format("Message Part: {0}", itemString));
+                string type = item.Value.GetType().Name.ToLower();
+                string item_value = type == "string" ? item.Value.ToString().Replace('\n', '\t') : item.Value.ToString();
+                string itemString = string.Format("{0}: {1}, {2}\n", item.Key, item_value, type);
+                //Echo(string.Format("Message Part: {0}", itemString));
                 message += itemString;
             }
 
@@ -301,13 +332,13 @@ namespace IngameScript
             {
                 if (part == "")
                 {
-                    break;
+                    continue;
                 }
-                //Echo(string.Format("Message Part:\n {0}", part));
+                Echo(string.Format("MESSAGE PART: {0}", part));
                 string[] values = part.Split(delim);
                 string key = values[0];
                 values = values[1].Split(',');
-                string type = values[1];
+                string type = values[1].Trim().ToLower();
                 object value;
                 switch (type)
                 {
@@ -318,12 +349,18 @@ namespace IngameScript
                         value = float.Parse(values[0]);
                         break;
                     case "long":
-                    case "Int64":
+                    case "int64":
                         value = long.Parse(values[0]);
                         break;
-                    case "Vector3D":
+                    case "boolean":
+                        value = bool.Parse(values[0]);
+                        break;
+                    case "vector3d":
                         string[] vectors = values[0].Split(',');
                         value = new Vector3(float.Parse(vectors[0]), float.Parse(vectors[1]), float.Parse(vectors[2]));
+                        break;
+                    case "string":
+                        value = values[0].ToString().Replace('\t', '\n');
                         break;
                     default:
                         value = values[0];
@@ -375,14 +412,10 @@ namespace IngameScript
 
             public bool IsOccupied()
             {
-                if (sensor != null)
-                {
-                    return sensor.IsActive;
-                }
-                else
-                {
-                    return false;
-                }
+                string saved_status = controller.CustomData.ToLower().Split(',')[0];
+                return saved_status.Trim() != "free";
+
+                
             }
 
             public long GetShipID()
